@@ -1,0 +1,23 @@
+[Unit]
+Description=Office climate logger (SCD40 CO2/temperature/humidity)
+# Timestamps are only meaningful once NTP has set the clock; the Pi has no RTC.
+# This waits only if systemd-time-wait-sync.service is enabled.
+Wants=time-sync.target
+After=time-sync.target
+
+[Service]
+ExecStart=/usr/local/bin/climate-logger
+User=climate
+Group=climate
+SupplementaryGroups=i2c
+StateDirectory=climate-monitor
+Restart=on-failure
+RestartSec=30
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

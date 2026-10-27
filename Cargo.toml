@@ -1,0 +1,15 @@
+[package]
+name = "climate-monitor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+embedded-hal = "1.0.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+linux-embedded-hal = { version = "0.5", default-features = false, features = ["i2c"] }
+
+[dev-dependencies]
+embedded-hal-mock = { version = "0.11", default-features = false, features = ["eh1"] }
