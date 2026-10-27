@@ -67,6 +67,12 @@ sudo systemctl enable --now climate-logger
 journalctl -u climate-logger -f
 ```
 
+The journal shows only the startup line and failed readings; successful readings go to the CSV alone. To watch them arrive:
+
+```sh
+tail -f /var/lib/climate-monitor/readings.csv
+```
+
 `CLIMATE_I2C_DEVICE` (default `/dev/i2c-1`) and `CLIMATE_LOG_PATH` (default `/var/lib/climate-monitor/readings.csv`) override the defaults; set them with `Environment=` in a drop-in via `sudo systemctl edit climate-logger`.
 
 ## Development
