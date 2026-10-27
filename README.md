@@ -26,6 +26,23 @@ timestamp,co2_ppm,temperature_c,humidity_pct
 
 Timestamps are UTC in RFC 3339 and record when the reading was taken, a few seconds after the slot boundary. The sensor runs in low-power periodic mode, sampling every 30 s, so each row is the most recent sample at that moment. A slot whose reading fails is logged to the journal and has no row; the CSV never contains placeholder values.
 
+The logger opens the file once at startup and holds it open. Deleting it while the service runs loses every later reading: the logger keeps writing to the deleted file and no new one appears until a restart. To start a fresh log, stop the service around the delete, and it recreates the file with a header row on start:
+
+```sh
+sudo systemctl stop climate-logger
+sudo rm /var/lib/climate-monitor/readings.csv
+sudo systemctl start climate-logger
+```
+
+To clear the readings without stopping the service, truncate the file in place to just its header row:
+
+```sh
+f=/var/lib/climate-monitor/readings.csv
+sudo truncate -s "$(head -n 1 "$f" | wc -c)" "$f"
+```
+
+New rows append after the header. Anything that rewrites the file instead, such as `sed -i` or saving it from an editor, replaces it with a new file and loses later readings just as deleting it does.
+
 ## Design
 
 The binary runs as a long-lived service rather than a job started every 15 minutes, because the SCD40 has no single-shot mode: it must measure continuously, and its automatic self-calibration relies on that continuous operation.
