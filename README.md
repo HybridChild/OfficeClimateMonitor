@@ -84,6 +84,8 @@ sudo systemctl enable --now climate-logger
 journalctl -u climate-logger -f
 ```
 
+With `systemd-time-wait-sync` enabled, the logger starts only once `systemd-timesyncd` has synchronized the clock, so the Pi needs a reachable NTP server: the public pool over a network with internet access, or a [local NTP server](#using-a-local-ntp-server). Without one, the logger waits at boot and never starts.
+
 The journal shows only the startup line and failed readings; successful readings go to the CSV alone. To watch them arrive:
 
 ```sh
@@ -91,6 +93,42 @@ tail -f /var/lib/climate-monitor/readings.csv
 ```
 
 `CLIMATE_I2C_DEVICE` (default `/dev/i2c-1`) and `CLIMATE_LOG_PATH` (default `/var/lib/climate-monitor/readings.csv`) override the defaults; set them with `Environment=` in a drop-in via `sudo systemctl edit climate-logger`.
+
+## Troubleshooting
+
+### The logger doesn't start after a reboot
+
+If the clock never synchronizes, the logger has not failed but is waiting: its start job is queued behind `systemd-time-wait-sync`, which waits indefinitely. Starting it by hand with `sudo systemctl start climate-logger` waits the same way. To confirm that time sync is the cause:
+
+```sh
+systemctl status climate-logger   # inactive/activating, start job waiting rather than failed
+systemctl list-jobs               # shows the queued start job(s)
+timedatectl                       # "System clock synchronized: no"
+timedatectl timesync-status       # which server it's trying, and "Packet count"
+```
+
+At boot, timesyncd restores the clock from the last time it saved, so an unsynchronized clock is usually hours behind rather than obviously wrong. To resolve it, do one of:
+
+- Give the Pi network access to an NTP server, such as a network with DHCP and internet.
+- Point timesyncd at a [local NTP server](#using-a-local-ntp-server).
+- Run `sudo systemctl disable systemd-time-wait-sync` so the logger starts without waiting. Rows logged before the clock syncs then have wrong timestamps; [truncating the log](#log-format) clears them afterwards.
+
+Once the clock syncs, `time-sync.target` is reached and the logger starts on its own.
+
+### Using a local NTP server
+
+Point timesyncd at the server with a drop-in:
+
+```sh
+sudo mkdir -p /etc/systemd/timesyncd.conf.d
+printf '[Time]\nNTP=<server-ip>\n' | sudo tee /etc/systemd/timesyncd.conf.d/local-ntp.conf
+sudo systemctl restart systemd-timesyncd
+timedatectl timesync-status
+```
+
+timesyncd silently ignores a server whose root distance (root delay / 2 + root dispersion) exceeds `RootDistanceMaxSec`, which defaults to 5 s. A server that is not itself synchronized upstream can report more than that; Windows w32time running on its local clock reports a dispersion of 10 s. The symptom is `Packet count: 0` in `timedatectl timesync-status` even though the server answers. Add `RootDistanceMaxSec=30` under `[Time]` in the same drop-in and restart timesyncd.
+
+A Windows PC can serve time through the NTP server built into the [Windows Time service](https://learn.microsoft.com/en-us/windows-server/networking/windows-time-service/windows-time-service-tools-and-settings), provided it allows inbound UDP port 123.
 
 ## Development
 
